@@ -10,7 +10,7 @@ import pandas as pd
 from statistics import mean
 colors = ['red', 'blue', 'green', 'darkgreen', 'orange', 'yellow', 'midnightblue', 'blue', 'purple', 'fuchsia', 'saddlebrown','olive', 'slategrey', 'darkred', 'darkslateblue', 'indigo', 'lime', 'teal', 'darkolivegreen', 'mediumvioletred']
 gens = [i for i in range(51)]
-hits=0
+hit=0
 def div(left, right):
     try:
         return left/right
@@ -46,7 +46,7 @@ def protected_sqrt(x):
             return 0.0
     except Exception as e:
         return 0.0
-    
+
 def multiply(a, b):
     try:
         a = float(a)
@@ -59,17 +59,25 @@ def multiply(a, b):
         return "Error: the result is too large to handle."
     return result
 
+hit=0
 def fitness_eval(individual, points, tb):
     evalu = tb.compile(expr=individual)
     sq_error = 0
+    counter=0
+    global hit
+    hit=0
+    # error_list=[]
     for i in range(len(points)):
         x = points[i]
-        error = evalu(x) - (x**0.5)
+        error = evalu(x) - (math.sin(x)+math.sin(x**2+x))
+        if error<=0.01:
+            counter=counter+1
+            # error_list.append(error)
         error = abs(error)
         sq_error = sq_error + error
-    if (sq_error)<0.01:
-        global hits
-        hits = hits+1
+    if(counter==len(points)):
+        hit=hit+1
+    # print(error_list)    
     return sq_error,
 
 
@@ -96,13 +104,13 @@ def initialization(pset_):
     tb.register('individual', tools.initIterate, creator.Individual, tb.expr) #singular object
     tb.register('population', tools.initRepeat, list, tb.individual) # collection of singular objects
     tb.register('compile', gp.compile, pset=pset_)
-    tb.register('evaluate', fitness_eval, points=[(random.randint(0, 40) / 10) for x in range(20)], tb = tb) #calculate fitness score
-    tb.register('select', tools.selTournament, tournsize=3) #select the parents via tournament selection
+    tb.register('evaluate', fitness_eval, points=[(random.randint(-10, 10) / 10) for x in range(20)], tb = tb) #calculate fitness score
+    tb.register('select', tools.selTournament, tournsize=7) #select the parents via tournament selection
     tb.register('mate', gp.cxOnePoint) #crossover of the parents: twopoint
     tb.register('mut_expr', gp.genFull, min_=0, max_=5) #registering the type of individual to be made after crossover
     tb.register('mutate', gp.mutUniform, expr=tb.mut_expr, pset=pset_) #mutation
-    tb.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=16))
-    tb.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=16))
+    tb.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=15))
+    tb.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=15))
     return tb
 
 
@@ -156,6 +164,7 @@ def easimple(population, toolbox, cxpb, mutpb, ngen, stats=None, halloffame=None
     # return population, log
 
 def trial_runs(seed_number, tb, arr1, arr2, popn, colors, gens):
+    success=0
     for i in range(len(seed_number)):
         random.seed(seed_number[i])
         hof = tools.HallOfFame(1)
@@ -168,6 +177,11 @@ def trial_runs(seed_number, tb, arr1, arr2, popn, colors, gens):
         mstats.register('min', np.min)
         mstats.register('max', np.max)
         pop, log = easimple(pop, tb,  0.9, 0.05, 50, stats=mstats, halloffame=hof, verbose=True)
+        if(hit>0):
+            print('----------------------')
+            print('|       ',hit,'       |')
+            print('----------------------')
+            success=success+1
         for j in range(51):
             arr1[i].append(log.chapters['fitness'][j]['min'])
         for j in range(51):
@@ -178,7 +192,9 @@ def trial_runs(seed_number, tb, arr1, arr2, popn, colors, gens):
         # mp.show()
         prim_set = primitive_set()
         toolbx = initialization(prim_set)
-    return arr1, arr2
+    print('-------------------------------------------------')
+    print(success)
+    return arr1, arr2, success
 
 def run_main():
     prim_set = primitive_set()
@@ -193,19 +209,30 @@ def run_main():
     f_tree=[]
     for i in range(len(seeds)):
         f_tree.append([])
-    min_f, tree_f = trial_runs(seeds, toolbx, f_fitness, f_tree, 500, colors, gens)
+    min_f, tree_f, success_runs = trial_runs(seeds, toolbx, f_fitness, f_tree, 100, colors, gens)
 
-    return min_f, tree_f,seeds
+    return min_f, tree_f,seeds, success_runs
 
-def tabulation(min_f, tree_f, file_name, seeds):
+def tabulation(min_f, tree_f, file_name, seeds, success_runs):
     f_minfit=[]
     f_maxfit=[]
     f_avgfit=[]
     f_stdfit=[]
     f_avgsize=[]
     f_maxsize=[]
-    mp.boxplot(min_f, positions=range(len(min_f)))
-    mp.show()
+    # mp.boxplot(min_f, positions=range(len(min_f)))
+    # mp.show()
+    # success_hit=0
+    # for i in min_f:
+    #     counter=0
+    #     for j in i:
+    #         if j<=0.01:
+    #             counter=counter+1
+    #     if(counter!=0):
+    #         success_hit=success_hit+1
+        # print
+        # print('-----------------------------------------------')
+
     for i in min_f:
         f_minfit.append(min(i))
         f_maxfit.append(max(i))
@@ -221,12 +248,12 @@ def tabulation(min_f, tree_f, file_name, seeds):
     mp.legend()
     mp.show()
     
-# print(f6_minfit)
-# print(f6_maxfit)
-# print(f6_avgfit)
-# print(f6_stdfit)
-# print(f6_sizemin)
-# print(f6_avgsize)
+    print(mean(f_minfit))
+    print(np.std(f_minfit))
+    print(min(f_minfit))
+    print(mean(f_maxsize))
+    print(np.std(f_maxsize))
+    print("Hit rate:",(success_runs/20)*100,"%")
 
     df_f = pd.DataFrame()
     df_f['MinFit'] = f_minfit
@@ -236,9 +263,9 @@ def tabulation(min_f, tree_f, file_name, seeds):
     df_f['Average Tree Size'] = f_avgsize
     df_f['Max Tree Size'] = f_maxsize
 
-    # df_f.to_excel(file_name)
+    df_f.to_excel(file_name)
 
 
 
-arr_1, arr_2, arr_3 = run_main()
-tabulation(arr_1, arr_2, 'Function_22.xlsx', arr_3)
+arr_1, arr_2, arr_3, arr_4 = run_main()
+tabulation(arr_1, arr_2, 'Function_8var2.xlsx', arr_3, arr_4)
